@@ -9,7 +9,7 @@ SuperAgent = require 'superagent'
 MongoseJSONLD = require '../src'
 mongooseJSONLD = new MongoseJSONLD(
 	baseURL: 'http://www-test.bib-uni-mannheim.de/infolis'
-	apiPrefix: '/api'
+	apiPrefix: '/api/v1'
 	expandContext: 'basic'
 )
 dump = (stuff) ->
@@ -28,20 +28,35 @@ test 'CRUD', (t) ->
 	app.use(bodyParser.json())
 	mongooseJSONLD.injectRestfulHandlers(app, PublicationModel)
 	db.open  'localhost:27018/test'
+	id = null
 	db.once 'open', ->
 		Async.series [
 			(cb) -> 
 				request(app)
-				.get('/api/v1/publications')
+				.delete('/api/v1/publications/!')
+				.accept('text/turtle')
 				.end (err, res) ->
-					t.equals res.text, '[]', 'No things published yet'
+					t.equals res.statusCode, 200, "DELETE /* 200"
 					cb()
 			(cb) -> 
 				request(app)
 				.post '/api/v1/publications'
-				.send {'FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO': 44444444444444343434343434343434343434343333333333333343}
+				.send {'title': 'The Art of Kung-Foo'}
 				.end (err, res) ->
-					t.equals res.text, '[]', 'No things published yet'
+					t.equals res.statusCode, 201, 'POST / 201'
+					id = res.body._id
+					cb()
+			(cb) -> 
+				request(app)
+				.get "/api/v1/publications/64fd946ceaa8dd8e5d2e202e"
+				.end (err, res) ->
+					t.equals res.statusCode, 404, 'GET /:id 404'
+					cb()
+			(cb) -> 
+				request(app)
+				.get "/api/v1/publications/#{id}"
+				.end (err, res) ->
+					t.equals res.statusCode, 200, 'GET /:id 200'
 					cb()
 		], (err) ->
 			db.close()
