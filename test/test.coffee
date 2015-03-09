@@ -34,9 +34,8 @@ test 'CRUD', (t) ->
 			(cb) -> 
 				request(app)
 				.delete('/api/v1/publications/!')
-				.accept('text/turtle')
 				.end (err, res) ->
-					t.equals res.statusCode, 200, "DELETE /* 200"
+					t.equals res.statusCode, 200, "DELETE /! 200"
 					cb()
 			(cb) -> 
 				request(app)
@@ -45,7 +44,14 @@ test 'CRUD', (t) ->
 				.end (err, res) ->
 					t.equals res.statusCode, 201, 'POST / 201'
 					id = res.body._id
-					cb()
+					request(app)
+					.get "/api/v1/publications/#{id}"
+					.accept('text/turtle')
+					.end (err, res) ->
+						t.ok res.text.indexOf('@prefix') > -1, 'Converted to Turtle'
+						t.ok res.headers['content-type'].indexOf('text/turtle') > -1, 'Correct content-type'
+						t.equals res.statusCode, 200, 'GET /:id 200'
+						cb()
 			(cb) -> 
 				request(app)
 				.get "/api/v1/publications/64fd946ceaa8dd8e5d2e202e"
@@ -54,10 +60,27 @@ test 'CRUD', (t) ->
 					cb()
 			(cb) -> 
 				request(app)
-				.get "/api/v1/publications/#{id}"
+				.put "/api/v1/publications/#{id}"
+				.send {title: 'Bars and Quuxes'}
 				.end (err, res) ->
-					t.equals res.statusCode, 200, 'GET /:id 200'
-					cb()
+					t.equals res.statusCode, 201, 'PUT /:id 201'
+					request(app)
+					.get "/api/v1/publications/#{id}"
+					.end (err, res) ->
+						t.equals res.body.title, 'Bars and Quuxes', 'Title updated'
+						t.equals res.statusCode, 200, 'GET /:id 200'
+						cb()
+			(cb) -> 
+				request(app)
+				.delete('/api/v1/publications/!')
+				.accept('text/turtle')
+				.end (err, res) ->
+					t.equals res.statusCode, 200, "DELETE /! 200"
+					request(app)
+					.get "/api/v1/publications/"
+					.end (err, res) ->
+						t.equals res.body.length, 0, 'No more docs after delete'
+						cb()
 		], (err) ->
 			db.close()
 			t.end()
