@@ -31,8 +31,8 @@
     "tapes": "^0.4.1"
   },
   "dependencies": {
-    "jsonld-rapper": "0.0.6",
-    "mongoose-jsonld": "file:../mongoose-jsonld",
-    "express-jsonld": "file:../express-jsonld"
+    "jsonld-rapper": "*",
+    "mongoose-jsonld": "*",
+    "express-jsonld": "*"
   }
 }
