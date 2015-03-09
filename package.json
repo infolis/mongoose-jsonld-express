@@ -1,0 +1,38 @@
+{
+  "name": "mongoose-jsonld-epxress",
+  "version": "0.0.1",
+  "description": "Inject RESTful and schema handlers based on mongoose-jsonld powered schema (backed by jsonld-rapper, no less)",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "coffee test/*.coffee|tap-spec",
+    "mongo": "mongod --dbpath data/mongodb --port 27018",
+    "docs": "docker -i src -o apidocs -s -n -c vs",
+    "compile": "coffee -c -o lib src",
+    "clean": "rm -r apidocs lib ; true",
+    "prepublish": "npm run compile"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/infolis/mongoose-jsonld-express.git"
+  },
+  "author": "kba",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/infolis/mongoose-jsonld-express/issues"
+  },
+  "homepage": "https://github.com/infolis/mongoose-jsonld-express",
+  "devDependencies": {
+    "body-parser": "^1.12.0",
+    "superagent": "^0.21.0",
+    "mongoose": "^3.8.24",
+    "supertest": "^0.15.0",
+    "tap-spec": "^2.2.2",
+    "express": "^4.12.2",
+    "tapes": "^0.4.1"
+  },
+  "dependencies": {
+    "express-jsonld": "0.0.2",
+    "mongoose-jsonld": "0.0.1",
+    "jsonld-rapper": "0.0.6"
+  }
+}
