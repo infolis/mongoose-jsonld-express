@@ -1,6 +1,6 @@
 {
   "name": "mongoose-jsonld-epxress",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Inject RESTful and schema handlers based on mongoose-jsonld powered schema (backed by jsonld-rapper, no less)",
   "main": "lib/index.js",
   "scripts": {
