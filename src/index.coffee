@@ -1,8 +1,8 @@
 Async = require 'async'
-# MongooseJSONLD = require 'mongoose-jsonld'
-MongooseJSONLD = require '../../mongoose-jsonld/src'
-# ExpressJSONLD = require 'express-jsonld'
-ExpressJSONLD = require '../../express-jsonld/src'
+MongooseJSONLD = require 'mongoose-jsonld'
+# MongooseJSONLD = require '../../mongoose-jsonld/src'
+ExpressJSONLD = require 'express-jsonld'
+# ExpressJSONLD = require '../../express-jsonld/src'
 
 mongooseJSONLD = new MongooseJSONLD()
 expressJSONLD = new ExpressJSONLD()
