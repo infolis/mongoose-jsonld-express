@@ -1,7 +1,7 @@
 Async = require 'async'
-MongooseJSONLD = require 'mongoose-jsonld'
+MongooseJSONLD = require 'mongoose-jsonld/src'
 # MongooseJSONLD = require '../../mongoose-jsonld/src'
-ExpressJSONLD = require 'express-jsonld'
+ExpressJSONLD = require 'express-jsonld/src'
 # ExpressJSONLD = require '../../express-jsonld/src'
 
 mongooseJSONLD = new MongooseJSONLD()
@@ -29,11 +29,13 @@ module.exports = class MongooseJSONLDExpress extends MongooseJSONLD
 				_conneg(doc, req, res, next)
 
 	_GET_Collection : (model, req, res, next) ->
+		console.log "Retrieving all docs for model #{model.modelName}"
 		model.find {}, (err, docs) ->
 			if err
 				return next new Error(err)
 			res.status = 200
-			res.send docs
+			req.jsonld = docs.map (el) -> el.toJSON()
+			next()
 			# Async.map docs, (doc, cb) ->
 			#     doc.jsonldABox cb
 			# , (err, docs) ->
@@ -51,12 +53,15 @@ module.exports = class MongooseJSONLDExpress extends MongooseJSONLD
 			res.send {removed: removed}
 
 	_POST_Resource: (model, req, res, next) ->
-		model.create req.body, (err, created) ->
+		console.log "Create new '#{model.modelName}' resource: "
+		doc = new model(req.body)
+		doc.save (err, created) ->
 			if err
-				next new Error(err)
-			else
+				return next new Error(err)
+			created.jsonldABox (err, jsonld) ->
 				res.status 201
-				res.send created
+				req.jsonld = jsonld
+				next()
 
 	_PUT_Resource : (model, req, res, next) ->
 		input = req.body
@@ -72,34 +77,57 @@ module.exports = class MongooseJSONLDExpress extends MongooseJSONLD
 				res.status 201
 				res.end()
 
-	injectRestfulHandlers: (app, model) ->
+	injectRestfulHandlers: (app, model, nextMiddleware) ->
+		console.log nextMiddleware.toString()
+		if not nextMiddleware
+			console.log "Should provide a middleware to handle this"
+			nextMiddleware = (req, res, next) ->
+				res.send req.jsonld
+
 		self = @
 		basePath = "#{@apiPrefix}/#{model.collection.name}"
-		console.log basePath
 
-		# GET /api/somethings  => list all
-		app.get "#{basePath}", (req, res, next) =>
-			@_GET_Collection(model, req, res, next)
+		handlers = [
+			# GET /api/somethings  => list all
+				method: 'get'
+				path: "#{basePath}"
+				handler: @_GET_Collection
+			,
+				method: 'get'
+				path: "#{basePath}/:id"
+				handler: @_GET_Resource
+			,
+				method: 'post'
+				path: "#{basePath}/?"
+				handler: @_POST_Resource
 
-		# GET /api/somethings  => list all
-		app.get "#{basePath}/:id", (req, res, next) =>
-			@_GET_Resource(model, req, res, next)
+		]
+
+		console.log "Registering REST Handlers on basePath '#{basePath}'"
+		for handler in handlers
+			console.log handler
+			app[handler.method](
+				handler.path
+				(req, res, next) -> handler.handler(model, req, res, next)
+				(req, res, next) -> nextMiddleware(req, res, next)
+			)
+
+ 
+		# # GET /api/somethings  => list all
+		# app.get "#{basePath}/:id", (req, res, next) =>
+		#     @_GET_Resource(model, req, res, next)
+
+		# # POST /api/somethings => create new something
+		# app.put "#{basePath}/:id", (req, res, next) =>
+		#     @_PUT_Resource(model, req, res, next)
 
 		# POST /api/somethings => create new something
-		app.put "#{basePath}/:id", (req, res, next) =>
-			@_PUT_Resource(model, req, res, next)
+		# app.post "#{basePath}/?", (req, res, next) =>
+		#     @_POST_Resource(model, req, res, next)
 
-		# POST /api/somethings => create new something
-		app.post "#{basePath}/?", (req, res, next) =>
-			@_POST_Resource(model, req, res, next)
-
-		# DELETE /api/somethings/* => create new something
-		app.delete "#{basePath}/!", (req, res, next) =>
-			@_DELETE_Collection(model, req, res, next)
-
-		# GET /api/somethings  => list all
-		app.get "#{basePath}", (req, res, next) =>
-			@_GET_Collection(model, req, res, next)
+		# # DELETE /api/somethings/* => create new something
+		# app.delete "#{basePath}/!", (req, res, next) =>
+		#     @_DELETE_Collection(model, req, res, next)
 
 		# PUT /api/somethings/:id => create/replace something with :id
 		# TODO
