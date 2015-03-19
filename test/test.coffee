@@ -33,9 +33,9 @@ test 'CRUD', (t) ->
 		Async.series [
 			(cb) -> 
 				request(app)
-				.delete('/api/v1/publications/!')
+				.delete('/api/v1/publications/!!')
 				.end (err, res) ->
-					t.equals res.statusCode, 200, "DELETE /! 200"
+					t.equals res.statusCode, 200, "DELETE /!! 200"
 					cb()
 			(cb) -> 
 				request(app)
@@ -52,12 +52,14 @@ test 'CRUD', (t) ->
 						t.ok res.headers['content-type'].indexOf('text/turtle') > -1, 'Correct content-type'
 						t.equals res.statusCode, 200, 'GET /:id 200'
 						cb()
+
 			(cb) -> 
 				request(app)
 				.get "/api/v1/publications/64fd946ceaa8dd8e5d2e202e"
 				.end (err, res) ->
 					t.equals res.statusCode, 404, 'GET /:id 404'
 					cb()
+
 			(cb) -> 
 				request(app)
 				.put "/api/v1/publications/#{id}"
@@ -70,17 +72,19 @@ test 'CRUD', (t) ->
 						t.equals res.body.title, 'Bars and Quuxes', 'Title updated'
 						t.equals res.statusCode, 200, 'GET /:id 200'
 						cb()
+
 			(cb) -> 
 				request(app)
-				.delete('/api/v1/publications/!')
+				.delete('/api/v1/publications/!!')
 				.accept('text/turtle')
 				.end (err, res) ->
-					t.equals res.statusCode, 200, "DELETE /! 200"
+					t.equals res.statusCode, 200, "DELETE /!! 200"
 					request(app)
 					.get "/api/v1/publications/"
 					.end (err, res) ->
 						t.equals res.body.length, 0, 'No more docs after delete'
 						cb()
+
 		], (err) ->
 			db.close()
 			t.end()

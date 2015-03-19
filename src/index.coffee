@@ -3,64 +3,96 @@ MongooseJSONLD = require 'mongoose-jsonld/src'
 # MongooseJSONLD = require '../../mongoose-jsonld/src'
 ExpressJSONLD = require 'express-jsonld/src'
 # ExpressJSONLD = require '../../express-jsonld/src'
-
-mongooseJSONLD = new MongooseJSONLD()
-expressJSONLD = new ExpressJSONLD()
-
-_conneg = (doc, req, res, next) ->
-	if not req.headers.accept or req.headers.accept is 'application/json'
-		return res.send doc
-	doc.jsonldABox (err, doc) ->
-		req.jsonld = doc
-		return expressJSONLD.handle(req, res, next)
+JsonLD2RDF	 = require 'jsonld-rapper'
 
 module.exports = class MongooseJSONLDExpress extends MongooseJSONLD
 
+	constructor : () ->
+		super
+		@expressJsonld = new ExpressJSONLD(
+			j2rOptions:
+				expandContext: @expandContext
+				baseURI: @baseURL # TODO meh bad naming
+		)
+		@expressJsonldMiddleware = @expressJsonld.getMiddleware()
+
+	_conneg : (req, res, next) ->
+		self = @
+		if not req.mongooseDoc 
+			res.end()
+		else if not req.headers.accept or req.headers.accept in ['*/*', 'application/json']
+			if Array.isArray(req.mongooseDoc)
+				res.send req.mongooseDoc.map (el) -> el.toJSON()
+			else
+				res.send req.mongooseDoc.toJSON()
+		else
+			if Array.isArray(req.mongooseDoc)
+				Async.map req.mongooseDoc, (doc, eachDoc) ->
+					doc.jsonldABox eachDoc
+				, (err, result) =>
+					req.jsonld = result
+					self.expressJsonldMiddleware(req, res, next)
+			else
+				req.mongooseDoc.jsonldABox req.mongooseDoc, (err, jsonld) ->
+					req.jsonld = jsonld
+					self.expressJsonldMiddleware(req, res, next)
+
 	_GET_Resource : (model, req, res, next) ->
+		console.log "GET #{model.modelName}##{req.params.id} "
 		model.findOne {_id: req.params.id}, (err, doc) ->
 			if err
-				res.status 400
+				res.status 500
 				return next new Error(err)
 			if not doc
 				res.status 404
-				res.end()
 			else
 				res.status 200
-				_conneg(doc, req, res, next)
+				req.mongooseDoc = doc
+			next()
 
 	_GET_Collection : (model, req, res, next) ->
-		console.log "Retrieving all docs for model #{model.modelName}"
+		console.log "GET all #{model.modelName}"
 		model.find {}, (err, docs) ->
 			if err
+				res.status 500
 				return next new Error(err)
 			res.status = 200
-			req.jsonld = docs.map (el) -> el.toJSON()
+			req.mongooseDoc = docs
 			next()
-			# Async.map docs, (doc, cb) ->
-			#     doc.jsonldABox cb
-			# , (err, docs) ->
-			#     req.jsonld = docs
-			#     console.log docs
-			#     try
-			#         expressJSONLD.handle(req, res, next)
-			#     catch e
-			#         next new Error(e)
 
 	_DELETE_Collection: (model, req, res, next) ->
+		console.log "DELETE all #{model.modelName}"
 		model.remove {}, (err, removed) ->
-			return next new Error(err) if err
+			if err
+				res.status 500
+				return next new Error(err)
 			res.status 200
-			res.send {removed: removed}
+			console.log "Removed #{removed} documents"
+			next()
+
+	_DELETE_Resource : (model, req, res, next) ->
+		input = req.body
+		console.log "DELETE #{model.modelName}##{req.params.id}"
+		model.remove {_id: req.params.id}, (err, nrRemoved) ->
+			if err
+				res.status 400
+				return next new Error(err)
+			if nrRemoved == 0
+				res.status 404
+			else
+				res.status 201
+			next()
 
 	_POST_Resource: (model, req, res, next) ->
-		console.log "Create new '#{model.modelName}' resource: "
 		doc = new model(req.body)
-		doc.save (err, created) ->
+		console.log "POST new '#{model.modelName}' resource: #{doc.toJSON()}"
+		doc.save (err, newDoc) ->
 			if err
+				res.status 500
 				return next new Error(err)
-			created.jsonldABox (err, jsonld) ->
+			else
 				res.status 201
-				req.jsonld = jsonld
+				req.mongooseDoc = newDoc
 				next()
 
 	_PUT_Resource : (model, req, res, next) ->
@@ -78,56 +110,34 @@ module.exports = class MongooseJSONLDExpress extends MongooseJSONLD
 				res.end()
 
 	injectRestfulHandlers: (app, model, nextMiddleware) ->
-		console.log nextMiddleware.toString()
 		if not nextMiddleware
-			console.log "Should provide a middleware to handle this"
-			nextMiddleware = (req, res, next) ->
-				res.send req.jsonld
+			nextMiddleware = @_conneg.bind(@)
 
 		self = @
 		basePath = "#{@apiPrefix}/#{model.collection.name}"
 
-		handlers = [
-			# GET /api/somethings  => list all
-				method: 'get'
-				path: "#{basePath}"
-				handler: @_GET_Collection
-			,
-				method: 'get'
-				path: "#{basePath}/:id"
-				handler: @_GET_Resource
-			,
-				method: 'post'
-				path: "#{basePath}/?"
-				handler: @_POST_Resource
-
-		]
+		api = {}
+		# GET /api/somethings/:id     => get a 'something' with :id
+		api["GET #{basePath}/:id"]     = @_GET_Resource
+		# GET /api/somethings         => List all somethings
+		api["GET #{basePath}/?"]       = @_GET_Collection
+		# POST /api/somethings        => create new something
+		api["POST #{basePath}/?"]      = @_POST_Resource
+		# PUT /api/somethings/:id     => create/replace something with :id
+		api["PUT #{basePath}/:id"]     = @_PUT_Resource
+		# DELETE /api/somethings/!    => delete all somethings [XXX DANGER ZONE]
+		api["DELETE #{basePath}/!!"]   = @_DELETE_Collection
+		# DELETE /api/somethings/:id  => delete something with :id
+		api["DELETE #{basePath}/:id"]  = @_DELETE_Resource
 
 		console.log "Registering REST Handlers on basePath '#{basePath}'"
-		for handler in handlers
-			console.log handler
-			app[handler.method](
-				handler.path
-				(req, res, next) -> handler.handler(model, req, res, next)
-				(req, res, next) -> nextMiddleware(req, res, next)
-			)
-
- 
-		# # GET /api/somethings  => list all
-		# app.get "#{basePath}/:id", (req, res, next) =>
-		#     @_GET_Resource(model, req, res, next)
-
-		# # POST /api/somethings => create new something
-		# app.put "#{basePath}/:id", (req, res, next) =>
-		#     @_PUT_Resource(model, req, res, next)
-
-		# POST /api/somethings => create new something
-		# app.post "#{basePath}/?", (req, res, next) =>
-		#     @_POST_Resource(model, req, res, next)
-
-		# # DELETE /api/somethings/* => create new something
-		# app.delete "#{basePath}/!", (req, res, next) =>
-		#     @_DELETE_Collection(model, req, res, next)
-
-		# PUT /api/somethings/:id => create/replace something with :id
-		# TODO
+		for methodAndPath, handle of api
+			do (methodAndPath, handle, nextMiddleware) ->
+				expressMethod = methodAndPath.substr(0, methodAndPath.indexOf(' ')).toLowerCase()
+				path = methodAndPath.substr(methodAndPath.indexOf(' ') + 1)
+				# console.log "#{expressMethod} '#{path}'"
+				app[expressMethod](
+					path
+					(req, res, next) -> handle(model, req, res, next)
+					(req, res, next) -> nextMiddleware(req, res, next)
+				)
