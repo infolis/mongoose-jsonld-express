@@ -1,7 +1,7 @@
 {
   "name": "mongoose-jsonld-epxress",
   "version": "0.0.6",
-  "description": "Inject RESTful and schema handlers based on mongoose-jsonld powered schema (backed by jsonld-rapper, no less)",
+  "description": "Obsolete",
   "main": "lib/index.js",
   "scripts": {
     "test": "coffee test/*.coffee|tap-spec",

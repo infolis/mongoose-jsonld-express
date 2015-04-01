@@ -1,5 +1,5 @@
 mongoose-jsonld-express
 =======================
 
-Inject restful and schema request handlers for mongoose-jsonld powered schemas
+OBSOLETE: This has been merged into [[mongoose-jsonld]]
 
